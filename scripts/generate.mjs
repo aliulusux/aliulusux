@@ -1,39 +1,28 @@
-// Draws the profile's cards as animated SVG files from public GitHub data.
+// Draws the profile's cards as animated SVG files, in the look of an old green
+// command prompt, from public GitHub data and the totals in data/private.json.
 //
 //   GITHUB_TOKEN=... node scripts/generate.mjs
 //
 // GitHub runs no script and no page styles in a README, but an SVG shown as an
-// image keeps the styles and animations inside it, so everything lives there:
-// the photo goes in as base64 because such an image cannot load another file.
-import { mkdirSync, writeFileSync } from 'node:fs';
-import sharp from 'sharp';
+// image keeps the styles and animations inside it, so everything lives there.
+// data/private.json holds totals only, sent by the private repository itself:
+// this repository has no access to it, and never learns its name.
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 
 const LOGIN = process.env.PROFILE_LOGIN ?? 'aliulusux';
 const TOKEN = process.env.GITHUB_TOKEN;
 if (!TOKEN) throw new Error('GITHUB_TOKEN is required');
 
-const THEMES = {
-  aurora: {
-    bg0: '#0b0a1f', bg1: '#141033', panel: '#0f0d28', a: '#6c7cff', b: '#b56bff', c: '#ff5fd2',
-    ink: '#f3f1ff', muted: '#9c97c4', line: '#34306a',
-  },
-  matrix: {
-    bg0: '#04100a', bg1: '#071c12', panel: '#050f0a', a: '#16c172', b: '#39e27d', c: '#b6f09c',
-    ink: '#d9ffe6', muted: '#6fb48c', line: '#14503a',
-  },
-  ember: {
-    bg0: '#150909', bg1: '#2a0f0c', panel: '#190b0a', a: '#ff5c39', b: '#ff9a3d', c: '#ffd166',
-    ink: '#fff3e6', muted: '#c49a86', line: '#5a2a20',
-  },
+const C = {
+  bg: '#030a05',
+  bar: '#0b1a0f',
+  green: '#39ff7a',
+  mid: '#22c55e',
+  dim: '#15803d',
+  faint: '#0f3d21',
+  white: '#d6ffe3',
 };
-
-const LANGUAGE_COLORS = {
-  JavaScript: '#f1e05a', TypeScript: '#3178c6', CSS: '#663399', SCSS: '#c6538c', HTML: '#e34c26',
-  Dart: '#00b4ab', Python: '#3572a5', Shell: '#89e051', Kotlin: '#a97bff', Swift: '#f05138',
-};
-
-const SANS = `-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif`;
-const MONO = `ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,'Liberation Mono',monospace`;
+const MONO = `Consolas,'Lucida Console',ui-monospace,SFMono-Regular,Menlo,'Liberation Mono',monospace`;
 
 // ── Data ────────────────────────────────────────────────────────────────────
 
@@ -62,7 +51,7 @@ function monthsOf(weeks) {
   const out = [];
   let last = -1;
   weeks.forEach((week, w) => {
-    const month = Number(week.contributionDays[0].date.slice(5, 7)) - 1;
+    const month = Number(week[0].date.slice(5, 7)) - 1;
     if (month !== last) {
       // The first, cut short by the year's edge, would run into the second.
       if (out.length === 1 && w < 3) out.pop();
@@ -74,11 +63,15 @@ function monthsOf(weeks) {
 }
 
 async function loadProfile() {
+  const hidden = existsSync('data/private.json')
+    ? JSON.parse(readFileSync('data/private.json', 'utf8'))
+    : { private_repos: 0, commits: 0, days: {}, languages: {} };
+
   const user = await rest(`users/${LOGIN}`);
   const repos = (await rest(`users/${LOGIN}/repos?per_page=100&type=owner&sort=pushed`))
     .filter((r) => !r.fork && !r.private && r.name !== LOGIN);
 
-  const bytes = {};
+  const bytes = { ...hidden.languages };
   for (const repo of repos) {
     const languages = await rest(`repos/${LOGIN}/${repo.name}/languages`);
     for (const [name, n] of Object.entries(languages)) bytes[name] = (bytes[name] ?? 0) + n;
@@ -94,7 +87,6 @@ async function loadProfile() {
       user(login: $login) {
         contributionsCollection {
           contributionCalendar {
-            totalContributions
             weeks { contributionDays { contributionCount date } }
           }
         }
@@ -102,210 +94,192 @@ async function loadProfile() {
     }`,
     { login: LOGIN },
   );
-  const calendar = graph.contributionsCollection.contributionCalendar;
-  const weeks = calendar.weeks.map((w) => w.contributionDays.map((d) => d.contributionCount));
-  const days = calendar.weeks.flatMap((w) => w.contributionDays);
+  // Each day's public contributions, and the private repository's commits.
+  const weeks = graph.contributionsCollection.contributionCalendar.weeks.map((w) =>
+    w.contributionDays.map((d) => ({
+      date: d.date,
+      n: d.contributionCount + (hidden.days[d.date] ?? 0),
+    })),
+  );
+  const days = weeks.flat();
 
   let streak = 0;
   let longest = 0;
   for (const d of days) {
-    streak = d.contributionCount > 0 ? streak + 1 : 0;
+    streak = d.n > 0 ? streak + 1 : 0;
     longest = Math.max(longest, streak);
   }
 
   return {
     login: LOGIN,
     name: user.name ?? LOGIN,
-    avatar: user.avatar_url,
     followers: user.followers,
     publicRepos: repos.length,
+    privateRepos: hidden.private_repos,
+    privateCommits: hidden.commits,
     stars: repos.reduce((n, r) => n + r.stargazers_count, 0),
     since: user.created_at.slice(0, 4),
     repos: repos.slice(0, 4),
     languages,
-    contributions: calendar.totalContributions,
+    contributions: days.reduce((sum, d) => sum + d.n, 0),
     weeks,
-    months: monthsOf(calendar.weeks),
-    activeDays: days.filter((d) => d.contributionCount > 0).length,
+    months: monthsOf(weeks),
+    activeDays: days.filter((d) => d.n > 0).length,
     longestStreak: longest,
-    busiest: days.reduce((m, d) => Math.max(m, d.contributionCount), 0),
+    busiest: days.reduce((m, d) => Math.max(m, d.n), 0),
   };
-}
-
-/// The photo twice over: small enough to embed, and as lines of characters.
-async function loadPortrait(url) {
-  const source = Buffer.from(await (await fetch(`${url}&s=400`)).arrayBuffer());
-  const photo = await sharp(source).resize(200, 200).jpeg({ quality: 78 }).toBuffer();
-  const COLS = 58;
-  const ROWS = 29;
-  const { data } = await sharp(source)
-    .resize(COLS, ROWS, { fit: 'cover' })
-    .grayscale()
-    .normalise()
-    .linear(1.35, -30)
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-  const ramp = ' .:-=+*#%@';
-  const ascii = [];
-  for (let y = 0; y < ROWS; y++) {
-    let line = '';
-    for (let x = 0; x < COLS; x++) {
-      // Dark parts of the photo drawn densest: on a dark card the hair and the
-      // outline of the head then stand out, and a light background falls away.
-      const shade = 1 - data[y * COLS + x] / 256;
-      line += ramp[Math.min(ramp.length - 1, Math.floor(shade ** 1.5 * ramp.length))];
-    }
-    ascii.push(line);
-  }
-  return { photo: `data:image/jpeg;base64,${photo.toString('base64')}`, ascii };
 }
 
 // ── Drawing helpers ─────────────────────────────────────────────────────────
 
 const esc = (s) =>
   String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const round = (v) => Math.round(v * 10) / 10;
 
-/// A card's outer shell; animations stop for anyone who asked for less motion.
-const svg = (w, h, t, label, style, body) => `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(label)}">
-<style>
-text{font-family:${SANS}}
-.mono{font-family:${MONO}}
-${style}
-@media (prefers-reduced-motion:reduce){*{animation:none!important;opacity:1!important;transform:none!important}}
-</style>
-<defs>
-<linearGradient id="brand" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="${t.a}"/><stop offset=".5" stop-color="${t.b}"/><stop offset="1" stop-color="${t.c}"/></linearGradient>
-<linearGradient id="edge" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="${t.a}" stop-opacity=".9"/><stop offset=".5" stop-color="${t.line}"/><stop offset="1" stop-color="${t.c}" stop-opacity=".7"/></linearGradient>
-<clipPath id="card"><rect x="1" y="1" width="${w - 2}" height="${h - 2}" rx="22"/></clipPath>
-</defs>
-<g clip-path="url(#card)"><rect width="${w}" height="${h}" fill="${t.bg0}"/>${body}</g>
-<rect x="1" y="1" width="${w - 2}" height="${h - 2}" rx="22" fill="none" stroke="url(#edge)" stroke-width="1.5"/>
-</svg>
-`;
+const CHAR = 0.56;
+let clips = 0;
 
-/// Slow-drifting blurred light behind a card.
-const blobs = (t, w, h) => `<defs><filter id="blur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="50"/></filter></defs>
-<g filter="url(#blur)" opacity=".75">
-<circle class="d1" cx="${w * 0.14}" cy="${h * 0.15}" r="${h * 0.42}" fill="${t.a}"/>
-<circle class="d2" cx="${w * 0.74}" cy="${h * 0.05}" r="${h * 0.36}" fill="${t.b}"/>
-<circle class="d3" cx="${w * 0.56}" cy="${h * 1.05}" r="${h * 0.4}" fill="${t.c}"/>
-</g>`;
-const BLOB_STYLE = `.d1{animation:d1 14s ease-in-out infinite alternate}.d2{animation:d2 18s ease-in-out infinite alternate}.d3{animation:d3 16s ease-in-out infinite alternate}
-@keyframes d1{to{transform:translate(90px,50px)}}@keyframes d2{to{transform:translate(-120px,60px)}}@keyframes d3{to{transform:translate(110px,-50px)}}`;
-
-// ── Hero ────────────────────────────────────────────────────────────────────
-
-function hero(p, photo, t) {
-  const W = 1000;
-  const H = 300;
-  const phrases = ['Building things with JavaScript', 'Learning in public', 'Always shipping something new'];
-  const cycle = phrases.length * 5;
-  const typed = phrases
-    .map((text, i) => {
-      const width = text.length * 11.4;
-      return `<g class="ph" style="animation-delay:${i * 5}s">
-<clipPath id="ty${i}"><rect class="ty" style="--w:${width}px;animation-delay:${i * 5}s" x="290" y="168" height="32" width="${width}"/></clipPath>
-<text clip-path="url(#ty${i})" x="290" y="190" font-size="20" class="mono" fill="${t.ink}" opacity=".88">${esc(text)}</text></g>`;
-    })
-    .join('');
-  let chipX = 290;
-  const chips = p.languages
-    .slice(0, 4)
-    .map((l, i) => {
-      const w = l.name.length * 8.6 + 34;
-      const chip = `<g class="chip" style="animation-delay:${0.5 + i * 0.14}s">
-<rect x="${chipX}" y="218" width="${w}" height="34" rx="17" fill="${t.bg0}" fill-opacity=".55" stroke="${t.a}" stroke-opacity=".6"/>
-<text x="${chipX + w / 2}" y="240" text-anchor="middle" font-size="14" font-weight="600" fill="${t.ink}">${esc(l.name)}</text></g>`;
-      chipX += w + 10;
-      return chip;
-    })
-    .join('');
-  const stars = Array.from({ length: 26 }, (_, i) => {
-    const x = (i * 379) % W;
-    const y = (i * 137) % H;
-    return `<circle class="tw" style="animation-delay:${(i * 0.37) % 4}s" cx="${x}" cy="${y}" r="${1 + (i % 3) * 0.5}" fill="#fff"/>`;
-  }).join('');
-  const style = `${BLOB_STYLE}
-.tw{animation:tw 4s ease-in-out infinite}@keyframes tw{0%,100%{opacity:.08}50%{opacity:.85}}
-.spin{transform-origin:150px 150px;animation:spin 7s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
-.halo{transform-origin:150px 150px;animation:halo 3.6s ease-in-out infinite}@keyframes halo{50%{transform:scale(1.07);opacity:.35}}
-.rise{animation:rise .9s cubic-bezier(.2,.9,.25,1.15) both}@keyframes rise{from{opacity:0;transform:translateY(16px)}}
-.chip{animation:rise .7s cubic-bezier(.2,.9,.25,1.2) both}
-.ph{opacity:0;animation:ph ${cycle}s linear infinite}@keyframes ph{0%,${(100 / phrases.length) * 0.94}%{opacity:1}${100 / phrases.length}%,100%{opacity:0}}
-.ty{animation:ty ${cycle}s steps(32) infinite}@keyframes ty{0%{width:0}${(100 / phrases.length) * 0.45}%,100%{width:var(--w)}}
-.star{transform-box:fill-box;transform-origin:center;animation:shoot 9s linear infinite}@keyframes shoot{0%{transform:translate(-120px,-40px);opacity:0}4%{opacity:1}14%{transform:translate(620px,190px);opacity:0}100%{opacity:0;transform:translate(620px,190px)}}`;
-  return svg(W, H, t, `${p.name} (@${p.login})`, style, `
-<rect width="${W}" height="${H}" fill="${t.bg1}"/>
-${blobs(t, W, H)}
-${stars}
-<path class="star" d="M240 20 l-90 -28" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity="0"/>
-<rect x="22" y="22" width="${W - 44}" height="${H - 44}" rx="18" fill="${t.bg0}" fill-opacity=".42" stroke="#fff" stroke-opacity=".1"/>
-<circle class="halo" cx="150" cy="150" r="104" fill="none" stroke="${t.b}" stroke-width="10" opacity=".65" style="filter:blur(10px)"/>
-<circle class="spin" cx="150" cy="150" r="96" fill="none" stroke="url(#brand)" stroke-width="5" stroke-linecap="round" stroke-dasharray="210 92"/>
-<clipPath id="face"><circle cx="150" cy="150" r="86"/></clipPath>
-<image href="${photo}" x="64" y="64" width="172" height="172" clip-path="url(#face)" preserveAspectRatio="xMidYMid slice"/>
-<g class="rise"><text x="290" y="82" font-size="16" letter-spacing="3" font-weight="700" fill="${t.c}" class="mono">@${esc(p.login)}</text></g>
-<g class="rise" style="animation-delay:.12s"><text x="288" y="146" font-size="62" font-weight="800" letter-spacing="-1.5" fill="url(#brand)">${esc(p.name)}</text></g>
-${typed}
-${chips}`);
+/// A line of text that types itself out from [delay], one character at a time.
+function typed(text, x, y, delay, { size = 17, fill = C.green, weight = 400 } = {}) {
+  const id = `c${clips++}`;
+  const width = round(text.length * size * CHAR + 6);
+  const time = round(Math.min(1.1, 0.05 + text.length * 0.022));
+  return `<clipPath id="${id}"><rect class="type" style="--w:${width}px;animation-duration:${time}s;animation-delay:${delay}s;animation-timing-function:steps(${Math.max(1, text.length)})" x="${x - 2}" y="${y - size - 2}" width="${width}" height="${size + 10}"/></clipPath>
+<text clip-path="url(#${id})" x="${x}" y="${y}" font-size="${size}" font-weight="${weight}" fill="${fill}" xml:space="preserve">${esc(text)}</text>`;
 }
 
-// ── Terminal ────────────────────────────────────────────────────────────────
+/// The prompt, then a command typing itself after it.
+const prompt = (command, x, y, delay) =>
+  typed(`C:\\Users\\${LOGIN}>${command}`, x, y, delay, { fill: C.white });
 
-function terminal(p, ascii, t) {
+/// A window of the old command prompt: its title bar, the phosphor's scan lines
+/// and glow, and a band of light rolling slowly down the glass.
+function win(W, H, title, label, style, body) {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label)}">
+<style>
+text{font-family:${MONO}}
+.type{width:0;animation-name:type;animation-fill-mode:forwards}@keyframes type{from{width:0}to{width:var(--w)}}
+.show{opacity:0;animation:show .01s linear forwards}@keyframes show{to{opacity:1}}
+.cur{animation:cur 1.05s steps(2,jump-none) infinite}@keyframes cur{to{opacity:0}}
+.crt{animation:crt 7s linear infinite}@keyframes crt{0%,96%,100%{opacity:1}97%{opacity:.86}98.5%{opacity:.97}}
+.roll{animation:roll 9s linear infinite}@keyframes roll{from{transform:translateY(-90px)}to{transform:translateY(${H + 30}px)}}
+${style}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;opacity:1!important;transform:none!important}.type{width:var(--w)}}
+</style>
+<defs>
+<pattern id="scan" width="4" height="4" patternUnits="userSpaceOnUse"><rect width="4" height="2" fill="#000" fill-opacity=".28"/></pattern>
+<linearGradient id="band" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${C.green}" stop-opacity="0"/><stop offset=".5" stop-color="${C.green}" stop-opacity=".07"/><stop offset="1" stop-color="${C.green}" stop-opacity="0"/></linearGradient>
+<radialGradient id="glass" cx=".5" cy=".5" r=".75"><stop offset=".55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".6"/></radialGradient>
+<filter id="glow" x="-5%" y="-20%" width="110%" height="140%"><feGaussianBlur stdDeviation="3.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<clipPath id="frame"><rect x="1" y="1" width="${W - 2}" height="${H - 2}" rx="10"/></clipPath>
+</defs>
+<g clip-path="url(#frame)">
+<rect width="${W}" height="${H}" fill="${C.bg}"/>
+<g class="crt">${body}</g>
+<rect class="roll" y="0" width="${W}" height="90" fill="url(#band)"/>
+<rect width="${W}" height="${H}" fill="url(#scan)"/>
+<rect width="${W}" height="${H}" fill="url(#glass)"/>
+<rect width="${W}" height="34" fill="${C.bar}"/>
+<rect x="12" y="11" width="12" height="12" fill="none" stroke="${C.mid}"/><path d="M15 15h6M15 18h3" stroke="${C.mid}"/>
+<text x="34" y="22" font-size="13" fill="${C.mid}">${esc(title)}</text>
+<path d="M${W - 88} 21h10" stroke="${C.mid}" stroke-width="1.5"/>
+<rect x="${W - 60}" y="12" width="10" height="10" fill="none" stroke="${C.mid}" stroke-width="1.5"/>
+<path d="M${W - 30} 12l10 10M${W - 20} 12l-10 10" stroke="${C.mid}" stroke-width="1.5"/>
+<line x1="0" x2="${W}" y1="34" y2="34" stroke="${C.dim}"/>
+</g>
+<rect x="1" y="1" width="${W - 2}" height="${H - 2}" rx="10" fill="none" stroke="${C.dim}" stroke-width="1.5"/>
+</svg>
+`;
+}
+
+const cursor = (x, y, delay) =>
+  `<g class="show" style="animation-delay:${delay}s"><rect class="cur" x="${x}" y="${y - 14}" width="10" height="17" fill="${C.green}"/></g>`;
+
+// ── Boot, and the name in big letters ───────────────────────────────────────
+
+const PIXELS = {
+  A: ['01110', '10001', '11111', '10001', '10001'],
+  I: ['11111', '00100', '00100', '00100', '11111'],
+  L: ['10000', '10000', '10000', '10000', '11111'],
+  S: ['01111', '10000', '01110', '00001', '11110'],
+  U: ['10001', '10001', '10001', '10001', '01110'],
+  ' ': ['000', '000', '000', '000', '000'],
+};
+
+/// Letters drawn from squares, so that no font can break them apart.
+function banner(text, x, y, cell, delay) {
+  let cx = x;
+  let squares = '';
+  for (const letter of text.toUpperCase()) {
+    const rows = PIXELS[letter] ?? PIXELS[' '];
+    rows.forEach((row, ry) => {
+      [...row].forEach((on, rx) => {
+        if (on === '1') {
+          squares += `<rect x="${cx + rx * cell}" y="${y + ry * cell}" width="${cell - 1}" height="${cell - 1}"/>`;
+        }
+      });
+    });
+    cx += (rows[0].length + 1) * cell;
+  }
+  return `<g class="show" style="animation-delay:${delay}s" fill="${C.green}" filter="url(#glow)">${squares}</g>`;
+}
+
+function boot(p) {
   const W = 1000;
-  const H = 480;
+  const H = 330;
+  let at = 0.1;
+  const next = (gap) => (at = round(at + gap));
+  const body = [
+    typed('ULUSU-DOS [Version 26.11]', 28, 66, at, { fill: C.mid }),
+    typed(`Memory test ........ OK      GitHub link ........ OK      Member since ${p.since}`, 28, 90, next(0.4), {
+      fill: C.mid,
+      size: 15,
+    }),
+    prompt('banner.exe', 28, 128, next(0.8)),
+    banner(p.name, 30, 146, 12, next(0.5)),
+    prompt('echo %STATUS%', 28, 256, next(0.3)),
+    typed('Building | Learning | Shipping', 28, 282, next(0.5), { weight: 700 }),
+    prompt('', 28, 312, next(0.8)),
+    cursor(28 + `C:\\Users\\${p.login}>`.length * 17 * CHAR + 4, 312, at + 0.1),
+  ].join('\n');
+  return win(W, H, `C:\\Users\\${p.login}\\cmd.exe`, `${p.name} (@${p.login})`, '', body);
+}
+
+// ── systeminfo ──────────────────────────────────────────────────────────────
+
+function systeminfo(p) {
+  const W = 1000;
   const rows = [
-    ['Subject', p.name],
+    ['Host Name', p.name],
     ['Handle', `@${p.login}`],
-    ['Status', 'Building | Learning | Shipping'],
+    ['Registered', p.since],
     ['Languages', p.languages.slice(0, 3).map((l) => l.name).join(', ') || '-'],
-    ['Repositories', p.publicRepos],
-    ['Contributions', `${p.contributions} this year`],
-    ['Active days', p.activeDays],
-    ['Longest streak', `${p.longestStreak} day${p.longestStreak === 1 ? '' : 's'}`],
+    ['Public Repositories', p.publicRepos],
+    ...(p.privateRepos ? [['Private Repositories', `${p.privateRepos} (classified)`]] : []),
+    ...(p.privateCommits ? [['Private Commits', p.privateCommits]] : []),
+    ['Contributions (1 yr)', p.contributions],
+    ['Active Days', p.activeDays],
+    ['Longest Streak', `${p.longestStreak} day${p.longestStreak === 1 ? '' : 's'}`],
     ['Stars', p.stars],
     ['Followers', p.followers],
-    ['On GitHub since', p.since],
-    ['Contact', `github.com/${p.login}`],
+    ['Network', `github.com/${p.login}`],
   ];
+  const H = 104 + rows.length * 25 + 34;
   const lines = rows
     .map(([k, v], i) => {
-      const y = 112 + i * 27;
-      return `<g class="row" style="animation-delay:${0.5 + i * 0.13}s">
-<text x="520" y="${y}" font-size="14" font-weight="700" fill="${t.b}" class="mono">${esc(k)}</text>
-<line x1="660" x2="724" y1="${y - 4}" y2="${y - 4}" stroke="${t.line}" stroke-width="2" stroke-dasharray="2 5"/>
-<text x="736" y="${y}" font-size="14" fill="${t.ink}" class="mono">${esc(v)}</text></g>`;
+      const y = 104 + i * 25;
+      const delay = round(0.5 + i * 0.09);
+      return `<g class="show" style="animation-delay:${delay}s"><text x="28" y="${y}" font-size="16" fill="${C.mid}" xml:space="preserve">${esc(`${k}:`.padEnd(24))}</text><text x="310" y="${y}" font-size="16" fill="${C.white}">${esc(v)}</text></g>`;
     })
-    .join('');
-  const art = ascii
-    .map(
-      (line, i) =>
-        `<text class="mono art" style="animation-delay:${i * 0.045}s" x="42" y="${106 + i * 11.6}" font-size="11" textLength="402" lengthAdjust="spacingAndGlyphs" fill="url(#brand)" xml:space="preserve">${esc(line)}</text>`,
-    )
-    .join('');
-  const style = `.art{animation:art .5s ease-out both}@keyframes art{from{opacity:0}}
-.row{animation:row .5s ease-out both}@keyframes row{from{opacity:0;transform:translateX(-10px)}}
-.scan{animation:scan 5s linear infinite}@keyframes scan{from{transform:translateY(0)}to{transform:translateY(362px)}}
-.pulse{animation:pulse 1.6s ease-in-out infinite}@keyframes pulse{50%{opacity:.25}}
-.cur{animation:cur 1s steps(2) infinite}@keyframes cur{to{opacity:0}}`;
-  const grid = `<defs><pattern id="grid" width="18" height="18" patternUnits="userSpaceOnUse"><path d="M18 0H0V18" fill="none" stroke="${t.a}" stroke-opacity=".08"/></pattern>
-<linearGradient id="beam" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${t.b}" stop-opacity="0"/><stop offset="1" stop-color="${t.b}" stop-opacity=".35"/></linearGradient></defs>`;
-  return svg(W, H, t, `Profile scan of ${p.name}`, style, `${grid}
-<rect width="${W}" height="${H}" fill="${t.panel}"/>
-<rect width="${W}" height="48" fill="${t.bg1}"/>
-<circle cx="28" cy="24" r="6" fill="#ff5f57"/><circle cx="48" cy="24" r="6" fill="#febc2e"/><circle cx="68" cy="24" r="6" fill="#28c840"/>
-<text x="500" y="29" text-anchor="middle" font-size="13" fill="${t.muted}" class="mono">${esc(p.login)}@github ~ $ ./profile-scan --live</text>
-<circle class="pulse" cx="918" cy="24" r="4" fill="${t.b}"/><text x="930" y="29" font-size="12" font-weight="700" letter-spacing="1.5" fill="${t.b}" class="mono">LIVE</text>
-<rect x="24" y="68" width="440" height="388" rx="12" fill="url(#grid)" stroke="${t.line}"/>
-<rect x="500" y="68" width="476" height="388" rx="12" fill="url(#grid)" stroke="${t.line}"/>
-<text x="42" y="88" font-size="11" letter-spacing="2" fill="${t.muted}" class="mono">VISUAL.MAP</text>
-<text x="520" y="88" font-size="11" letter-spacing="2" fill="${t.muted}" class="mono">SYSTEM.INFO</text>
-${art}
-<g clip-path="url(#ma)"><rect class="scan" x="25" y="60" width="438" height="34" fill="url(#beam)"/></g>
-<clipPath id="ma"><rect x="24" y="94" width="440" height="362"/></clipPath>
-${lines}
-<rect class="cur" x="520" y="${112 + rows.length * 27 - 14}" width="9" height="16" fill="${t.b}"/>`);
+    .join('\n');
+  const end = H - 22;
+  const body = [
+    prompt('systeminfo', 28, 70, 0.1),
+    lines,
+    prompt('', 28, end, round(0.6 + rows.length * 0.09)),
+    cursor(28 + `C:\\Users\\${p.login}>`.length * 17 * CHAR + 4, end, round(0.7 + rows.length * 0.09)),
+  ].join('\n');
+  return win(W, H, 'systeminfo', `System information for ${p.name}`, '', body);
 }
 
 // ── Contributions, as dots ──────────────────────────────────────────────────
@@ -316,209 +290,149 @@ function mix(c1, c2, f) {
   return `#${hex.join('')}`;
 }
 
-function contributions(p, t) {
+function contributions(p) {
   const W = 1000;
-  const H = 300;
+  const H = 318;
   const ox = 70;
-  const oy = 150;
-  const step = (W - ox - 34) / 53;
-  const round = (v) => Math.round(v * 10) / 10;
+  const oy = 158;
+  const step = (W - ox - 34) / 54;
   const peak = Math.max(1, p.busiest);
   const circle = (x, y, r) => `M${round(x - r)} ${y}a${r} ${r} 0 1 0 ${r * 2} 0a${r} ${r} 0 1 0 ${-r * 2} 0`;
+  const shade = (f) => mix(C.dim, C.green, f);
 
   let empty = '';
   let lit = '';
-  let every = '';
   let last = null;
   p.weeks.forEach((days, w) => {
     // The year's first week can begin part way through: keep each day on its row.
     const skip = w === 0 ? 7 - days.length : 0;
-    days.forEach((n, index) => {
+    days.forEach((day, index) => {
       const x = round(ox + w * step + step / 2);
       const y = round(oy + (index + skip) * step);
-      every += circle(x, y, 5.4);
       last = { x, y };
-      if (n === 0) {
-        empty += circle(x, y, 4.4);
+      if (day.n === 0) {
+        empty += circle(x, y, 4.2);
         return;
       }
-      const f = Math.log(1 + n) / Math.log(1 + peak);
-      const color = f < 0.5 ? mix(t.a, t.b, f * 2) : mix(t.b, t.c, (f - 0.5) * 2);
-      const r = round(4.8 + f * 2);
-      const delay = round(w * 0.016 + index * 0.03);
-      lit += `<g class="dot" style="animation-delay:${delay}s"><circle class="glow" style="animation-delay:${round(delay * 2.3)}s" cx="${x}" cy="${y}" r="${round(r + 5)}" fill="${color}"/><circle cx="${x}" cy="${y}" r="${r}" fill="${color}"/></g>`;
+      const f = Math.log(1 + day.n) / Math.log(1 + peak);
+      const r = round(4.6 + f * 2);
+      const delay = round(0.5 + w * 0.014 + index * 0.02);
+      lit += `<g class="dot" style="animation-delay:${delay}s"><circle class="halo" style="animation-delay:${round(delay * 2.3)}s" cx="${x}" cy="${y}" r="${round(r + 4.5)}" fill="${shade(f)}"/><circle cx="${x}" cy="${y}" r="${r}" fill="${shade(f)}"/></g>`;
     });
   });
-
   const months = p.months
-    .map(({ w, label }) => `<text x="${round(ox + w * step + 1)}" y="${oy - 18}" font-size="12" fill="${t.muted}" class="mono">${label}</text>`)
+    .map(({ w, label }) => `<text x="${round(ox + w * step + 1)}" y="${oy - 18}" font-size="12" fill="${C.mid}">${label}</text>`)
     .join('');
   const weekdays = [['Mon', 1], ['Wed', 3], ['Fri', 5]]
-    .map(([label, row]) => `<text x="${ox - 10}" y="${round(oy + row * step + 4)}" text-anchor="end" font-size="11" fill="${t.muted}" class="mono">${label}</text>`)
+    .map(([label, row]) => `<text x="${ox - 10}" y="${round(oy + row * step + 4)}" text-anchor="end" font-size="11" fill="${C.mid}">${label}</text>`)
     .join('');
-  const legend = [0, 0.33, 0.66, 1]
-    .map((f, n) => `<circle cx="${W - 118 + n * 18}" cy="66" r="5" fill="${f === 0 ? t.a : f < 0.5 ? mix(t.a, t.b, f * 2) : mix(t.b, t.c, (f - 0.5) * 2)}"${f === 0 ? ' fill-opacity=".18"' : ''}/>`)
-    .join('');
-  const stat = (x, value, label, n) => `<g class="pop" style="animation-delay:${0.2 + n * 0.12}s"><text x="${x}" y="76" font-size="34" font-weight="800" fill="url(#brand)">${esc(value)}</text><text x="${x}" y="98" font-size="13" fill="${t.muted}">${esc(label)}</text></g>`;
-  const style = `${BLOB_STYLE}
-.dot{transform-box:fill-box;transform-origin:center;animation:dot .55s cubic-bezier(.2,.9,.25,1.5) both}@keyframes dot{from{transform:scale(0);opacity:0}}
-.glow{opacity:.22;animation:glow 3.4s ease-in-out infinite}@keyframes glow{50%{opacity:.5}}
-.pop{animation:pop .7s ease-out both}@keyframes pop{from{opacity:0;transform:translateY(10px)}}
-.sweep{animation:sweep 6s ease-in-out infinite}@keyframes sweep{from{transform:translateX(-220px)}to{transform:translateX(${W}px)}}
-.grid{animation:grid .9s ease-out both}@keyframes grid{from{opacity:0}}
+  const stat = (x, value, label, n) => `<g class="show" style="animation-delay:${round(0.3 + n * 0.12)}s"><text x="${x}" y="108" font-size="26" font-weight="700" fill="${C.green}" filter="url(#glow)">${esc(value)}</text><text x="${x + String(value).length * 15 + 10}" y="108" font-size="13" fill="${C.mid}">${esc(label)}</text></g>`;
+  const style = `.dot{transform-box:fill-box;transform-origin:center;animation:dot .4s steps(4) both}@keyframes dot{from{transform:scale(0);opacity:0}}
+.halo{opacity:.18;animation:halo 3.4s ease-in-out infinite}@keyframes halo{50%{opacity:.42}}
 .now{transform-box:fill-box;transform-origin:center;animation:now 2s ease-out infinite}@keyframes now{from{transform:scale(.5);opacity:.9}to{transform:scale(1.8);opacity:0}}`;
-  return svg(W, H, t, `${p.contributions} contributions in the last year`, style, `
-<defs>
-<linearGradient id="beam" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="${t.b}" stop-opacity="0"/><stop offset=".5" stop-color="${t.c}" stop-opacity=".55"/><stop offset="1" stop-color="${t.b}" stop-opacity="0"/></linearGradient>
-<mask id="dots" maskUnits="userSpaceOnUse" x="0" y="0" width="${W}" height="${H}"><path d="${every}" fill="#fff"/></mask>
-</defs>
-<rect width="${W}" height="${H}" fill="${t.panel}"/>
-${blobs(t, W, H).replace('opacity=".75"', 'opacity=".2"')}
-<text x="36" y="36" font-size="12" letter-spacing="2.5" fill="${t.muted}" class="mono">CONTRIBUTIONS</text>
-${stat(36, p.contributions, 'contributions this year', 0)}
-${stat(290, p.activeDays, 'active days', 1)}
-${stat(430, p.longestStreak, 'longest streak', 2)}
-${stat(590, p.busiest, 'busiest day', 3)}
-<text x="${W - 136}" y="70" text-anchor="end" font-size="11" fill="${t.muted}" class="mono">Less</text>${legend}<text x="${W - 50}" y="70" font-size="11" fill="${t.muted}" class="mono">More</text>
+  const body = `${prompt('git log --graph --since="1 year ago"', 28, 70, 0.1)}
+${stat(28, p.contributions, 'contributions', 0)}
+${stat(280, p.activeDays, 'active days', 1)}
+${stat(460, p.longestStreak, 'day streak', 2)}
+${stat(640, p.busiest, 'on the busiest day', 3)}
 ${months}${weekdays}
-<path class="grid" d="${empty}" fill="${t.a}" fill-opacity=".16"/>
-<g mask="url(#dots)"><rect class="sweep" x="0" y="${oy - 10}" width="220" height="${step * 7 + 10}" fill="url(#beam)"/></g>
+<path d="${empty}" fill="${C.faint}"/>
 ${lit}
-${last ? `<circle class="now" cx="${last.x}" cy="${last.y}" r="8" fill="none" stroke="${t.c}" stroke-width="1.5"/>` : ''}`);
+${last ? `<circle class="now" cx="${last.x}" cy="${last.y}" r="8" fill="none" stroke="${C.green}" stroke-width="1.5"/>` : ''}`;
+  return win(W, H, 'git log', `${p.contributions} contributions in the last year`, style, body);
 }
 
-// ── Languages ───────────────────────────────────────────────────────────────
+// ── Languages, as progress bars ─────────────────────────────────────────────
 
-function languages(p, t) {
+function languages(p) {
   const W = 1000;
-  const H = 176;
-  const barW = W - 72;
-  let x = 0;
-  const parts = p.languages
+  const H = 96 + p.languages.length * 28 + 8;
+  const CELLS = 46;
+  const lines = p.languages
     .map((l, i) => {
-      const w = Math.max(3, l.share * barW);
-      const part = `<rect class="part" style="animation-delay:${0.2 + i * 0.12}s" x="${36 + x}" y="58" width="${w}" height="16" fill="${LANGUAGE_COLORS[l.name] ?? mix(t.a, t.c, i / 5)}"/>`;
-      x += w;
-      return part;
+      const y = 104 + i * 28;
+      const delay = round(0.4 + i * 0.16);
+      const lit = Math.max(1, Math.round(l.share * CELLS));
+      let cells = '';
+      for (let c = 0; c < CELLS; c++) {
+        const x = 226 + c * 13;
+        cells +=
+          c < lit
+            ? `<rect class="cell" style="animation-delay:${round(delay + c * 0.012)}s" x="${x}" y="${y - 14}" width="10" height="16" fill="${C.green}"/>`
+            : `<rect x="${x}" y="${y - 14}" width="10" height="16" fill="${C.faint}"/>`;
+      }
+      return `<g class="show" style="animation-delay:${delay}s"><text x="28" y="${y}" font-size="16" fill="${C.white}">${esc(l.name)}</text></g>${cells}<g class="show" style="animation-delay:${delay}s"><text x="${W - 28}" y="${y}" text-anchor="end" font-size="15" fill="${C.mid}">${(l.share * 100).toFixed(1)}%</text></g>`;
     })
-    .join('');
-  const legend = p.languages
-    .map((l, i) => {
-      const lx = 36 + (i % 3) * 310;
-      const ly = 106 + Math.floor(i / 3) * 30;
-      return `<g class="fade" style="animation-delay:${0.5 + i * 0.1}s"><circle cx="${lx + 6}" cy="${ly - 5}" r="6" fill="${LANGUAGE_COLORS[l.name] ?? mix(t.a, t.c, i / 5)}"/><text x="${lx + 22}" y="${ly}" font-size="15" font-weight="600" fill="${t.ink}">${esc(l.name)}</text><text x="${lx + 240}" y="${ly}" text-anchor="end" font-size="14" fill="${t.muted}" class="mono">${(l.share * 100).toFixed(1)}%</text></g>`;
-    })
-    .join('');
-  const style = `.part{transform-box:fill-box;transform-origin:0 50%;animation:part .8s ease-out both}@keyframes part{from{transform:scaleX(0)}}
-.fade{animation:fade .6s ease-out both}@keyframes fade{from{opacity:0}}`;
-  return svg(W, H, t, 'Languages in public repositories', style, `
-<rect width="${W}" height="${H}" fill="${t.panel}"/>
-<text x="36" y="38" font-size="12" letter-spacing="2.5" fill="${t.muted}" class="mono">LANGUAGES</text>
-<clipPath id="pill"><rect x="36" y="58" width="${barW}" height="16" rx="8"/></clipPath>
-<g clip-path="url(#pill)"><rect x="36" y="58" width="${barW}" height="16" fill="${t.line}"/>${parts}</g>
-${legend}`);
+    .join('\n');
+  const style = `.cell{opacity:0;animation:show .01s linear forwards}`;
+  return win(W, H, 'languages', 'Languages', style, `${prompt('languages --all', 28, 70, 0.1)}\n${lines}`);
 }
 
 // ── A project ───────────────────────────────────────────────────────────────
 
-function wrap(text, max, lines) {
-  const out = [''];
-  for (const word of text.split(/\s+/)) {
-    if ((out[out.length - 1] + ' ' + word).trim().length > max) {
-      if (out.length === lines) {
-        out[out.length - 1] = `${out[out.length - 1].slice(0, max - 1)}...`;
-        break;
-      }
-      out.push(word);
-    } else {
-      out[out.length - 1] = (out[out.length - 1] + ' ' + word).trim();
-    }
-  }
-  return out;
-}
-
-function project(repo, i, t) {
+function project(repo, i) {
   const W = 490;
-  const H = 170;
-  const color = LANGUAGE_COLORS[repo.language] ?? t.b;
-  const about = wrap(repo.description ?? 'Public project on GitHub.', 52, 2)
-    .map((line, n) => `<text x="28" y="${88 + n * 22}" font-size="15" fill="${t.muted}">${esc(line)}</text>`)
-    .join('');
-  const style = `.in{animation:in .8s ${i * 0.12}s cubic-bezier(.2,.9,.25,1.1) both}@keyframes in{from{opacity:0;transform:translateY(12px)}}
-.glow{animation:glow 6s ${i}s ease-in-out infinite alternate}@keyframes glow{from{transform:translateX(-60px);opacity:.25}to{transform:translateX(320px);opacity:.5}}`;
-  return svg(W, H, t, `${repo.name} repository`, style, `
-<rect width="${W}" height="${H}" fill="${t.panel}"/>
-<defs><filter id="soft" x="-150%" y="-150%" width="400%" height="400%"><feGaussianBlur stdDeviation="34"/></filter></defs>
-<circle class="glow" cx="120" cy="20" r="70" fill="${t.b}" filter="url(#soft)"/>
-<g class="in">
-<text x="28" y="54" font-size="24" font-weight="800" fill="url(#brand)">${esc(repo.name)}</text>
-${about}
-<circle cx="35" cy="140" r="6" fill="${color}"/><text x="50" y="145" font-size="13" fill="${t.ink}">${esc(repo.language ?? 'Code')}</text>
-<text x="${W - 28}" y="145" text-anchor="end" font-size="13" fill="${t.muted}" class="mono">★ ${repo.stargazers_count}</text>
-</g>`);
+  const H = 142;
+  const about = repo.description ?? 'Public project on GitHub.';
+  const body = `${typed(`<DIR>  ${repo.name}`, 18, 74, round(0.2 + i * 0.2), { size: 19, weight: 700 })}
+<g class="show" style="animation-delay:${round(0.5 + i * 0.2)}s">
+<text x="18" y="100" font-size="14" fill="${C.mid}">${esc(about.length > 54 ? `${about.slice(0, 51)}...` : about)}</text>
+<text x="18" y="124" font-size="13" fill="${C.white}">${esc(repo.language ?? 'Code')}</text>
+<text x="${W - 18}" y="124" text-anchor="end" font-size="13" fill="${C.mid}">* ${repo.stargazers_count}</text>
+</g>`;
+  return win(W, H, `dir \\${repo.name}`, `${repo.name} repository`, '', body);
 }
 
 // ── The foot of the page ────────────────────────────────────────────────────
 
-function footer(p, t) {
+function footer() {
   const W = 1000;
-  const H = 120;
-  const wave = (y, a) => `M0 ${y}Q125 ${y - a} 250 ${y}T500 ${y}T750 ${y}T1000 ${y}T1250 ${y}T1500 ${y}T1750 ${y}T2000 ${y}V${H}H0Z`;
-  const style = `.w1{animation:w 9s linear infinite}.w2{animation:w 14s linear infinite reverse}@keyframes w{to{transform:translateX(-1000px)}}`;
-  return svg(W, H, t, 'Thanks for stopping by', style, `
-<rect width="${W}" height="${H}" fill="${t.panel}"/>
-<path class="w1" d="${wave(70, 26)}" fill="${t.a}" opacity=".35"/>
-<path class="w2" d="${wave(84, 20)}" fill="${t.c}" opacity=".3"/>
-<text x="500" y="46" text-anchor="middle" font-size="17" font-weight="600" fill="${t.ink}" class="mono">thanks for stopping by.</text>`);
+  const H = 112;
+  const body = `${prompt('exit', 28, 68, 0.1)}
+${typed('Thanks for stopping by.', 28, 94, 0.7, { weight: 700 })}
+${cursor(28 + 23 * 17 * CHAR + 8, 94, 1.3)}`;
+  return win(W, H, 'exit', 'Thanks for stopping by', '', body);
 }
 
 // ── Everything ──────────────────────────────────────────────────────────────
 
 const p = await loadProfile();
-const { photo, ascii } = await loadPortrait(p.avatar);
 
-for (const [name, t] of Object.entries(THEMES)) {
-  const dir = `assets/${name}`;
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(`${dir}/hero.svg`, hero(p, photo, t));
-  writeFileSync(`${dir}/terminal.svg`, terminal(p, ascii, t));
-  writeFileSync(`${dir}/contributions.svg`, contributions(p, t));
-  writeFileSync(`${dir}/languages.svg`, languages(p, t));
-  writeFileSync(`${dir}/footer.svg`, footer(p, t));
-  p.repos.forEach((repo, i) => writeFileSync(`${dir}/project-${i + 1}.svg`, project(repo, i, t)));
-}
+// The old looks' files go too: nothing here is drawn from them any more.
+rmSync('assets', { recursive: true, force: true });
+rmSync('THEMES.md', { force: true });
+mkdirSync('assets', { recursive: true });
+writeFileSync('assets/boot.svg', boot(p));
+writeFileSync('assets/systeminfo.svg', systeminfo(p));
+writeFileSync('assets/contributions.svg', contributions(p));
+writeFileSync('assets/languages.svg', languages(p));
+writeFileSync('assets/footer.svg', footer());
+p.repos.forEach((repo, i) => writeFileSync(`assets/project-${i + 1}.svg`, project(repo, i)));
 
-// The projects change over time, so the page that links to them is written too.
-const links = (theme) =>
-  p.repos
-    .map(
-      (r, i) =>
-        `<a href="https://github.com/${p.login}/${r.name}"><img src="assets/${theme}/project-${i + 1}.svg" width="49%" alt="${esc(r.name)}"></a>`,
-    )
-    .join('\n');
-const page = (theme) => `<div align="center">
+const links = p.repos
+  .map(
+    (r, i) =>
+      `<a href="https://github.com/${p.login}/${r.name}"><img src="assets/project-${i + 1}.svg" width="49%" alt="${esc(r.name)}"></a>`,
+  )
+  .join('\n');
+writeFileSync(
+  'README.md',
+  `<div align="center">
 
-<a href="https://github.com/${p.login}"><img src="assets/${theme}/hero.svg" width="100%" alt="${esc(p.name)}"></a>
+<a href="https://github.com/${p.login}"><img src="assets/boot.svg" width="100%" alt="${esc(p.name)}"></a>
 
-<img src="assets/${theme}/terminal.svg" width="100%" alt="Profile scan">
+<img src="assets/systeminfo.svg" width="100%" alt="System information">
 
-<img src="assets/${theme}/contributions.svg" width="100%" alt="${p.contributions} contributions in the last year">
+<img src="assets/contributions.svg" width="100%" alt="${p.contributions} contributions in the last year">
 
-<img src="assets/${theme}/languages.svg" width="100%" alt="Languages in public repositories">
+<img src="assets/languages.svg" width="100%" alt="Languages">
 
-${links(theme)}
+${links}
 
-<img src="assets/${theme}/footer.svg" width="100%" alt="Thanks for stopping by">
+<img src="assets/footer.svg" width="100%" alt="Thanks for stopping by">
 
 </div>
-`;
-const DEFAULT = process.env.PROFILE_THEME ?? 'aurora';
-writeFileSync('README.md', page(DEFAULT));
-writeFileSync(
-  'THEMES.md',
-  `# Themes\n\nThe profile uses **${DEFAULT}**. Set \`PROFILE_THEME\` in \`.github/workflows/update.yml\` to change it.\n\n${Object.keys(THEMES)
-    .map((n) => `## ${n}\n\n<img src="assets/${n}/hero.svg" width="100%" alt="${n} hero">\n\n<img src="assets/${n}/terminal.svg" width="100%" alt="${n} terminal">\n\n<img src="assets/${n}/contributions.svg" width="100%" alt="${n} contributions">\n`)
-    .join('\n')}`,
+`,
 );
 
-console.log(`${p.login}: ${p.publicRepos} repos, ${p.contributions} contributions, ${p.languages.length} languages`);
+console.log(`${p.login}: ${p.publicRepos} public, ${p.privateRepos} private, ${p.contributions} contributions`);
