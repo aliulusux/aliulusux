@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="112" viewBox="0 0 1000 112" role="img" aria-label="Thanks for stopping by">
+<style>
+text{font-family:Consolas,'Lucida Console',ui-monospace,SFMono-Regular,Menlo,'Liberation Mono',monospace}
+.type{width:0;animation-name:type;animation-fill-mode:forwards}@keyframes type{from{width:0}to{width:var(--w)}}
+.show{opacity:0;animation:show .01s linear forwards}@keyframes show{to{opacity:1}}
+.cur{animation:cur 1.05s steps(2,jump-none) infinite}@keyframes cur{to{opacity:0}}
+.crt{animation:crt 7s linear infinite}@keyframes crt{0%,96%,100%{opacity:1}97%{opacity:.86}98.5%{opacity:.97}}
+.roll{animation:roll 9s linear infinite}@keyframes roll{from{transform:translateY(-90px)}to{transform:translateY(142px)}}
+
+@media (prefers-reduced-motion:reduce){*{animation:none!important;opacity:1!important;transform:none!important}.type{width:var(--w)}}
+</style>
+<defs>
+<pattern id="scan" width="4" height="4" patternUnits="userSpaceOnUse"><rect width="4" height="2" fill="#000" fill-opacity=".28"/></pattern>
+<linearGradient id="band" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#39ff7a" stop-opacity="0"/><stop offset=".5" stop-color="#39ff7a" stop-opacity=".07"/><stop offset="1" stop-color="#39ff7a" stop-opacity="0"/></linearGradient>
+<radialGradient id="glass" cx=".5" cy=".5" r=".75"><stop offset=".55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".6"/></radialGradient>
+<filter id="glow" x="-5%" y="-20%" width="110%" height="140%"><feGaussianBlur stdDeviation="3.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<clipPath id="frame"><rect x="1" y="1" width="998" height="110" rx="10"/></clipPath>
+</defs>
+<g clip-path="url(#frame)">
+<rect width="1000" height="112" fill="#030a05"/>
+<g class="crt"><clipPath id="c10"><rect class="type" style="--w:225px;animation-duration:0.6s;animation-delay:0.1s;animation-timing-function:steps(23)" x="26" y="49" width="225" height="27"/></clipPath>
+<text clip-path="url(#c10)" x="28" y="68" font-size="17" font-weight="400" fill="#d6ffe3" xml:space="preserve">C:\Users\aliulusux&gt;exit</text>
+<clipPath id="c11"><rect class="type" style="--w:225px;animation-duration:0.6s;animation-delay:0.7s;animation-timing-function:steps(23)" x="26" y="75" width="225" height="27"/></clipPath>
+<text clip-path="url(#c11)" x="28" y="94" font-size="17" font-weight="700" fill="#39ff7a" xml:space="preserve">Thanks for stopping by.</text>
+<g class="show" style="animation-delay:1.3s"><rect class="cur" x="254.96" y="80" width="10" height="17" fill="#39ff7a"/></g></g>
+<rect class="roll" y="0" width="1000" height="90" fill="url(#band)"/>
+<rect width="1000" height="112" fill="url(#scan)"/>
+<rect width="1000" height="112" fill="url(#glass)"/>
+<rect width="1000" height="34" fill="#0b1a0f"/>
+<rect x="12" y="11" width="12" height="12" fill="none" stroke="#22c55e"/><path d="M15 15h6M15 18h3" stroke="#22c55e"/>
+<text x="34" y="22" font-size="13" fill="#22c55e">exit</text>
+<path d="M912 21h10" stroke="#22c55e" stroke-width="1.5"/>
+<rect x="940" y="12" width="10" height="10" fill="none" stroke="#22c55e" stroke-width="1.5"/>
+<path d="M970 12l10 10M980 12l-10 10" stroke="#22c55e" stroke-width="1.5"/>
+<line x1="0" x2="1000" y1="34" y2="34" stroke="#15803d"/>
+</g>
+<rect x="1" y="1" width="998" height="110" rx="10" fill="none" stroke="#15803d" stroke-width="1.5"/>
+</svg>

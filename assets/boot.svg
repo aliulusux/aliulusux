@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="330" viewBox="0 0 1000 330" role="img" aria-label="Ali Ulusu (@aliulusux)">
+<style>
+text{font-family:Consolas,'Lucida Console',ui-monospace,SFMono-Regular,Menlo,'Liberation Mono',monospace}
+.type{width:0;animation-name:type;animation-fill-mode:forwards}@keyframes type{from{width:0}to{width:var(--w)}}
+.show{opacity:0;animation:show .01s linear forwards}@keyframes show{to{opacity:1}}
+.cur{animation:cur 1.05s steps(2,jump-none) infinite}@keyframes cur{to{opacity:0}}
+.crt{animation:crt 7s linear infinite}@keyframes crt{0%,96%,100%{opacity:1}97%{opacity:.86}98.5%{opacity:.97}}
+.roll{animation:roll 9s linear infinite}@keyframes roll{from{transform:translateY(-90px)}to{transform:translateY(360px)}}
+
+@media (prefers-reduced-motion:reduce){*{animation:none!important;opacity:1!important;transform:none!important}.type{width:var(--w)}}
+</style>
+<defs>
+<pattern id="scan" width="4" height="4" patternUnits="userSpaceOnUse"><rect width="4" height="2" fill="#000" fill-opacity=".28"/></pattern>
+<linearGradient id="band" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#39ff7a" stop-opacity="0"/><stop offset=".5" stop-color="#39ff7a" stop-opacity=".07"/><stop offset="1" stop-color="#39ff7a" stop-opacity="0"/></linearGradient>
+<radialGradient id="glass" cx=".5" cy=".5" r=".75"><stop offset=".55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".6"/></radialGradient>
+<filter id="glow" x="-5%" y="-20%" width="110%" height="140%"><feGaussianBlur stdDeviation="3.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<clipPath id="frame"><rect x="1" y="1" width="998" height="328" rx="10"/></clipPath>
+</defs>
+<g clip-path="url(#frame)">
+<rect width="1000" height="330" fill="#030a05"/>
+<g class="crt"><clipPath id="c0"><rect class="type" style="--w:244px;animation-duration:0.6s;animation-delay:0.1s;animation-timing-function:steps(25)" x="26" y="47" width="244" height="27"/></clipPath>
+<text clip-path="url(#c0)" x="28" y="66" font-size="17" font-weight="400" fill="#22c55e" xml:space="preserve">ULUSU-DOS [Version 26.11]</text>
+<clipPath id="c1"><rect class="type" style="--w:636px;animation-duration:1.1s;animation-delay:0.5s;animation-timing-function:steps(75)" x="26" y="73" width="636" height="25"/></clipPath>
+<text clip-path="url(#c1)" x="28" y="90" font-size="15" font-weight="400" fill="#22c55e" xml:space="preserve">Memory test ........ OK      GitHub link ........ OK      Member since 2021</text>
+<clipPath id="c2"><rect class="type" style="--w:282.1px;animation-duration:0.7s;animation-delay:1.3s;animation-timing-function:steps(29)" x="26" y="109" width="282.1" height="27"/></clipPath>
+<text clip-path="url(#c2)" x="28" y="128" font-size="17" font-weight="400" fill="#d6ffe3" xml:space="preserve">C:\Users\aliulusux&gt;banner.exe</text>
+<g class="show" style="animation-delay:1.8s" fill="#39ff7a" filter="url(#glow)"><rect x="42" y="146" width="11" height="11"/><rect x="54" y="146" width="11" height="11"/><rect x="66" y="146" width="11" height="11"/><rect x="30" y="158" width="11" height="11"/><rect x="78" y="158" width="11" height="11"/><rect x="30" y="170" width="11" height="11"/><rect x="42" y="170" width="11" height="11"/><rect x="54" y="170" width="11" height="11"/><rect x="66" y="170" width="11" height="11"/><rect x="78" y="170" width="11" height="11"/><rect x="30" y="182" width="11" height="11"/><rect x="78" y="182" width="11" height="11"/><rect x="30" y="194" width="11" height="11"/><rect x="78" y="194" width="11" height="11"/><rect x="102" y="146" width="11" height="11"/><rect x="102" y="158" width="11" height="11"/><rect x="102" y="170" width="11" height="11"/><rect x="102" y="182" width="11" height="11"/><rect x="102" y="194" width="11" height="11"/><rect x="114" y="194" width="11" height="11"/><rect x="126" y="194" width="11" height="11"/><rect x="138" y="194" width="11" height="11"/><rect x="150" y="194" width="11" height="11"/><rect x="174" y="146" width="11" height="11"/><rect x="186" y="146" width="11" height="11"/><rect x="198" y="146" width="11" height="11"/><rect x="210" y="146" width="11" height="11"/><rect x="222" y="146" width="11" height="11"/><rect x="198" y="158" width="11" height="11"/><rect x="198" y="170" width="11" height="11"/><rect x="198" y="182" width="11" height="11"/><rect x="174" y="194" width="11" height="11"/><rect x="186" y="194" width="11" height="11"/><rect x="198" y="194" width="11" height="11"/><rect x="210" y="194" width="11" height="11"/><rect x="222" y="194" width="11" height="11"/><rect x="294" y="146" width="11" height="11"/><rect x="342" y="146" width="11" height="11"/><rect x="294" y="158" width="11" height="11"/><rect x="342" y="158" width="11" height="11"/><rect x="294" y="170" width="11" height="11"/><rect x="342" y="170" width="11" height="11"/><rect x="294" y="182" width="11" height="11"/><rect x="342" y="182" width="11" height="11"/><rect x="306" y="194" width="11" height="11"/><rect x="318" y="194" width="11" height="11"/><rect x="330" y="194" width="11" height="11"/><rect x="366" y="146" width="11" height="11"/><rect x="366" y="158" width="11" height="11"/><rect x="366" y="170" width="11" height="11"/><rect x="366" y="182" width="11" height="11"/><rect x="366" y="194" width="11" height="11"/><rect x="378" y="194" width="11" height="11"/><rect x="390" y="194" width="11" height="11"/><rect x="402" y="194" width="11" height="11"/><rect x="414" y="194" width="11" height="11"/><rect x="438" y="146" width="11" height="11"/><rect x="486" y="146" width="11" height="11"/><rect x="438" y="158" width="11" height="11"/><rect x="486" y="158" width="11" height="11"/><rect x="438" y="170" width="11" height="11"/><rect x="486" y="170" width="11" height="11"/><rect x="438" y="182" width="11" height="11"/><rect x="486" y="182" width="11" height="11"/><rect x="450" y="194" width="11" height="11"/><rect x="462" y="194" width="11" height="11"/><rect x="474" y="194" width="11" height="11"/><rect x="522" y="146" width="11" height="11"/><rect x="534" y="146" width="11" height="11"/><rect x="546" y="146" width="11" height="11"/><rect x="558" y="146" width="11" height="11"/><rect x="510" y="158" width="11" height="11"/><rect x="522" y="170" width="11" height="11"/><rect x="534" y="170" width="11" height="11"/><rect x="546" y="170" width="11" height="11"/><rect x="558" y="182" width="11" height="11"/><rect x="510" y="194" width="11" height="11"/><rect x="522" y="194" width="11" height="11"/><rect x="534" y="194" width="11" height="11"/><rect x="546" y="194" width="11" height="11"/><rect x="582" y="146" width="11" height="11"/><rect x="630" y="146" width="11" height="11"/><rect x="582" y="158" width="11" height="11"/><rect x="630" y="158" width="11" height="11"/><rect x="582" y="170" width="11" height="11"/><rect x="630" y="170" width="11" height="11"/><rect x="582" y="182" width="11" height="11"/><rect x="630" y="182" width="11" height="11"/><rect x="594" y="194" width="11" height="11"/><rect x="606" y="194" width="11" height="11"/><rect x="618" y="194" width="11" height="11"/></g>
+<clipPath id="c3"><rect class="type" style="--w:310.6px;animation-duration:0.8s;animation-delay:2.1s;animation-timing-function:steps(32)" x="26" y="237" width="310.6" height="27"/></clipPath>
+<text clip-path="url(#c3)" x="28" y="256" font-size="17" font-weight="400" fill="#d6ffe3" xml:space="preserve">C:\Users\aliulusux&gt;echo %STATUS%</text>
+<clipPath id="c4"><rect class="type" style="--w:291.6px;animation-duration:0.7s;animation-delay:2.6s;animation-timing-function:steps(30)" x="26" y="263" width="291.6" height="27"/></clipPath>
+<text clip-path="url(#c4)" x="28" y="282" font-size="17" font-weight="700" fill="#39ff7a" xml:space="preserve">Building | Learning | Shipping</text>
+<clipPath id="c5"><rect class="type" style="--w:186.9px;animation-duration:0.5s;animation-delay:3.4s;animation-timing-function:steps(19)" x="26" y="293" width="186.9" height="27"/></clipPath>
+<text clip-path="url(#c5)" x="28" y="312" font-size="17" font-weight="400" fill="#d6ffe3" xml:space="preserve">C:\Users\aliulusux&gt;</text>
+<g class="show" style="animation-delay:3.5s"><rect class="cur" x="212.88000000000002" y="298" width="10" height="17" fill="#39ff7a"/></g></g>
+<rect class="roll" y="0" width="1000" height="90" fill="url(#band)"/>
+<rect width="1000" height="330" fill="url(#scan)"/>
+<rect width="1000" height="330" fill="url(#glass)"/>
+<rect width="1000" height="34" fill="#0b1a0f"/>
+<rect x="12" y="11" width="12" height="12" fill="none" stroke="#22c55e"/><path d="M15 15h6M15 18h3" stroke="#22c55e"/>
+<text x="34" y="22" font-size="13" fill="#22c55e">C:\Users\aliulusux\cmd.exe</text>
+<path d="M912 21h10" stroke="#22c55e" stroke-width="1.5"/>
+<rect x="940" y="12" width="10" height="10" fill="none" stroke="#22c55e" stroke-width="1.5"/>
+<path d="M970 12l10 10M980 12l-10 10" stroke="#22c55e" stroke-width="1.5"/>
+<line x1="0" x2="1000" y1="34" y2="34" stroke="#15803d"/>
+</g>
+<rect x="1" y="1" width="998" height="328" rx="10" fill="none" stroke="#15803d" stroke-width="1.5"/>
+</svg>
