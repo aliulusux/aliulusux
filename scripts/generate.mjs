@@ -308,7 +308,7 @@ ${lines}
 <rect class="cur" x="520" y="${112 + rows.length * 27 - 14}" width="9" height="16" fill="${t.b}"/>`);
 }
 
-// ── Contributions, as a city ────────────────────────────────────────────────
+// ── Contributions, as dots ──────────────────────────────────────────────────
 
 function mix(c1, c2, f) {
   const n = (c, i) => parseInt(c.slice(1 + i * 2, 3 + i * 2), 16);
@@ -316,62 +316,75 @@ function mix(c1, c2, f) {
   return `#${hex.join('')}`;
 }
 
-function city(p, t) {
+function contributions(p, t) {
   const W = 1000;
-  const H = 400;
-  // Seen from above and to the left: weeks run along the card, days go back
-  // into it, so that a whole year fills the width instead of a thin diagonal.
-  const S = 14.5;
-  const K = 5;
-  const R = 9;
-  const GAP = 1.6;
-  const ox = 66;
-  const oy = 262;
-  const peak = Math.max(1, p.busiest);
+  const H = 300;
+  const ox = 70;
+  const oy = 150;
+  const step = (W - ox - 34) / 53;
   const round = (v) => Math.round(v * 10) / 10;
-  const cells = [];
-  p.weeks.forEach((days, w) => days.forEach((n, d) => cells.push({ w, d, n })));
-  // The far rows first, and in a row from the right: nearer ones cover them.
-  cells.sort((a, b) => a.d - b.d || b.w - a.w);
-  const top = (x, y) => {
-    const r = round(x + S - GAP);
-    return `M${round(x)} ${round(y)}H${r}L${round(r + K)} ${round(y + R)}H${round(x + K)}Z`;
-  };
-  let floor = '';
-  let bars = '';
-  for (const c of cells) {
-    const x = ox + c.w * S + c.d * K;
-    const y = oy + c.d * R;
-    if (c.n === 0) {
-      floor += top(x, y);
-      continue;
-    }
-    const f = Math.log(1 + c.n) / Math.log(1 + peak);
-    const h = round(14 + f * 122);
-    const color = f < 0.5 ? mix(t.a, t.b, f * 2) : mix(t.b, t.c, (f - 0.5) * 2);
-    const fx = round(x + K);
-    const fr = round(x + K + S - GAP);
-    const fy = round(y + R);
-    bars += `<g class="bar" style="animation-delay:${round(c.w * 0.018)}s"><path d="M${round(x)} ${round(y - h)}L${fx} ${round(fy - h)}V${fy}L${round(x)} ${round(y)}Z" fill="${mix(color, t.bg0, 0.5)}"/><path d="M${fx} ${round(fy - h)}H${fr}V${fy}H${fx}Z" fill="${mix(color, t.bg0, 0.22)}"/><path d="${top(x, y - h)}" fill="${color}"/></g>`;
-  }
+  const peak = Math.max(1, p.busiest);
+  const circle = (x, y, r) => `M${round(x - r)} ${y}a${r} ${r} 0 1 0 ${r * 2} 0a${r} ${r} 0 1 0 ${-r * 2} 0`;
+
+  let empty = '';
+  let lit = '';
+  let every = '';
+  let last = null;
+  p.weeks.forEach((days, w) => {
+    // The year's first week can begin part way through: keep each day on its row.
+    const skip = w === 0 ? 7 - days.length : 0;
+    days.forEach((n, index) => {
+      const x = round(ox + w * step + step / 2);
+      const y = round(oy + (index + skip) * step);
+      every += circle(x, y, 5.4);
+      last = { x, y };
+      if (n === 0) {
+        empty += circle(x, y, 4.4);
+        return;
+      }
+      const f = Math.log(1 + n) / Math.log(1 + peak);
+      const color = f < 0.5 ? mix(t.a, t.b, f * 2) : mix(t.b, t.c, (f - 0.5) * 2);
+      const r = round(4.8 + f * 2);
+      const delay = round(w * 0.016 + index * 0.03);
+      lit += `<g class="dot" style="animation-delay:${delay}s"><circle class="glow" style="animation-delay:${round(delay * 2.3)}s" cx="${x}" cy="${y}" r="${round(r + 5)}" fill="${color}"/><circle cx="${x}" cy="${y}" r="${r}" fill="${color}"/></g>`;
+    });
+  });
+
   const months = p.months
-    .map(({ w, label }) => `<text x="${round(ox + w * S + 6 * K)}" y="${oy + 7 * R + 26}" font-size="12" fill="${t.muted}" class="mono">${label}</text>`)
+    .map(({ w, label }) => `<text x="${round(ox + w * step + 1)}" y="${oy - 18}" font-size="12" fill="${t.muted}" class="mono">${label}</text>`)
     .join('');
-  const stat = (x, value, label, i) => `<g class="pop" style="animation-delay:${0.3 + i * 0.15}s"><text x="${x}" y="72" font-size="36" font-weight="800" fill="url(#brand)">${esc(value)}</text><text x="${x}" y="96" font-size="13" fill="${t.muted}">${esc(label)}</text></g>`;
+  const weekdays = [['Mon', 1], ['Wed', 3], ['Fri', 5]]
+    .map(([label, row]) => `<text x="${ox - 10}" y="${round(oy + row * step + 4)}" text-anchor="end" font-size="11" fill="${t.muted}" class="mono">${label}</text>`)
+    .join('');
+  const legend = [0, 0.33, 0.66, 1]
+    .map((f, n) => `<circle cx="${W - 118 + n * 18}" cy="66" r="5" fill="${f === 0 ? t.a : f < 0.5 ? mix(t.a, t.b, f * 2) : mix(t.b, t.c, (f - 0.5) * 2)}"${f === 0 ? ' fill-opacity=".18"' : ''}/>`)
+    .join('');
+  const stat = (x, value, label, n) => `<g class="pop" style="animation-delay:${0.2 + n * 0.12}s"><text x="${x}" y="76" font-size="34" font-weight="800" fill="url(#brand)">${esc(value)}</text><text x="${x}" y="98" font-size="13" fill="${t.muted}">${esc(label)}</text></g>`;
   const style = `${BLOB_STYLE}
-.bar{transform-box:fill-box;transform-origin:50% 100%;animation:grow .8s cubic-bezier(.2,.9,.25,1.2) both}@keyframes grow{from{transform:scaleY(0);opacity:0}}
-.pop{animation:pop .7s ease-out both}@keyframes pop{from{opacity:0;transform:translateY(10px)}}`;
+.dot{transform-box:fill-box;transform-origin:center;animation:dot .55s cubic-bezier(.2,.9,.25,1.5) both}@keyframes dot{from{transform:scale(0);opacity:0}}
+.glow{opacity:.22;animation:glow 3.4s ease-in-out infinite}@keyframes glow{50%{opacity:.5}}
+.pop{animation:pop .7s ease-out both}@keyframes pop{from{opacity:0;transform:translateY(10px)}}
+.sweep{animation:sweep 6s ease-in-out infinite}@keyframes sweep{from{transform:translateX(-220px)}to{transform:translateX(${W}px)}}
+.grid{animation:grid .9s ease-out both}@keyframes grid{from{opacity:0}}
+.now{transform-box:fill-box;transform-origin:center;animation:now 2s ease-out infinite}@keyframes now{from{transform:scale(.5);opacity:.9}to{transform:scale(1.8);opacity:0}}`;
   return svg(W, H, t, `${p.contributions} contributions in the last year`, style, `
+<defs>
+<linearGradient id="beam" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="${t.b}" stop-opacity="0"/><stop offset=".5" stop-color="${t.c}" stop-opacity=".55"/><stop offset="1" stop-color="${t.b}" stop-opacity="0"/></linearGradient>
+<mask id="dots" maskUnits="userSpaceOnUse" x="0" y="0" width="${W}" height="${H}"><path d="${every}" fill="#fff"/></mask>
+</defs>
 <rect width="${W}" height="${H}" fill="${t.panel}"/>
-${blobs(t, W, H).replace('opacity=".75"', 'opacity=".22"')}
-<text x="36" y="36" font-size="12" letter-spacing="2.5" fill="${t.muted}" class="mono">CONTRIBUTION.CITY</text>
+${blobs(t, W, H).replace('opacity=".75"', 'opacity=".2"')}
+<text x="36" y="36" font-size="12" letter-spacing="2.5" fill="${t.muted}" class="mono">CONTRIBUTIONS</text>
 ${stat(36, p.contributions, 'contributions this year', 0)}
-${stat(266, p.activeDays, 'active days', 1)}
-${stat(416, p.longestStreak, 'longest streak', 2)}
-${stat(566, p.busiest, 'busiest day', 3)}
-<path d="${floor}" fill="${t.a}" fill-opacity=".14" stroke="${t.a}" stroke-opacity=".12" stroke-width=".6"/>
-${bars}
-${months}`);
+${stat(290, p.activeDays, 'active days', 1)}
+${stat(430, p.longestStreak, 'longest streak', 2)}
+${stat(590, p.busiest, 'busiest day', 3)}
+<text x="${W - 136}" y="70" text-anchor="end" font-size="11" fill="${t.muted}" class="mono">Less</text>${legend}<text x="${W - 50}" y="70" font-size="11" fill="${t.muted}" class="mono">More</text>
+${months}${weekdays}
+<path class="grid" d="${empty}" fill="${t.a}" fill-opacity=".16"/>
+<g mask="url(#dots)"><rect class="sweep" x="0" y="${oy - 10}" width="220" height="${step * 7 + 10}" fill="url(#beam)"/></g>
+${lit}
+${last ? `<circle class="now" cx="${last.x}" cy="${last.y}" r="8" fill="none" stroke="${t.c}" stroke-width="1.5"/>` : ''}`);
 }
 
 // ── Languages ───────────────────────────────────────────────────────────────
@@ -469,7 +482,7 @@ for (const [name, t] of Object.entries(THEMES)) {
   mkdirSync(dir, { recursive: true });
   writeFileSync(`${dir}/hero.svg`, hero(p, photo, t));
   writeFileSync(`${dir}/terminal.svg`, terminal(p, ascii, t));
-  writeFileSync(`${dir}/city.svg`, city(p, t));
+  writeFileSync(`${dir}/contributions.svg`, contributions(p, t));
   writeFileSync(`${dir}/languages.svg`, languages(p, t));
   writeFileSync(`${dir}/footer.svg`, footer(p, t));
   p.repos.forEach((repo, i) => writeFileSync(`${dir}/project-${i + 1}.svg`, project(repo, i, t)));
@@ -489,7 +502,7 @@ const page = (theme) => `<div align="center">
 
 <img src="assets/${theme}/terminal.svg" width="100%" alt="Profile scan">
 
-<img src="assets/${theme}/city.svg" width="100%" alt="${p.contributions} contributions in the last year, drawn as a city">
+<img src="assets/${theme}/contributions.svg" width="100%" alt="${p.contributions} contributions in the last year">
 
 <img src="assets/${theme}/languages.svg" width="100%" alt="Languages in public repositories">
 
@@ -504,7 +517,7 @@ writeFileSync('README.md', page(DEFAULT));
 writeFileSync(
   'THEMES.md',
   `# Themes\n\nThe profile uses **${DEFAULT}**. Set \`PROFILE_THEME\` in \`.github/workflows/update.yml\` to change it.\n\n${Object.keys(THEMES)
-    .map((n) => `## ${n}\n\n<img src="assets/${n}/hero.svg" width="100%" alt="${n} hero">\n\n<img src="assets/${n}/terminal.svg" width="100%" alt="${n} terminal">\n\n<img src="assets/${n}/city.svg" width="100%" alt="${n} city">\n`)
+    .map((n) => `## ${n}\n\n<img src="assets/${n}/hero.svg" width="100%" alt="${n} hero">\n\n<img src="assets/${n}/terminal.svg" width="100%" alt="${n} terminal">\n\n<img src="assets/${n}/contributions.svg" width="100%" alt="${n} contributions">\n`)
     .join('\n')}`,
 );
 
