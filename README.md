@@ -4,7 +4,7 @@
 
 <img src="assets/systeminfo.svg" width="100%" alt="System information">
 
-<img src="assets/contributions.svg" width="100%" alt="282 contributions in the last year">
+<img src="assets/contributions.svg" width="100%" alt="480 contributions in the last year">
 
 <img src="assets/languages.svg" width="100%" alt="Languages">
 
