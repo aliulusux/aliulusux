@@ -1,0 +1,11 @@
+{
+  "name": "aliulusux-profile",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate": "node scripts/generate.mjs"
+  },
+  "dependencies": {
+    "sharp": "^0.34.1"
+  }
+}
