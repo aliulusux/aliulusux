@@ -8,7 +8,7 @@ The profile uses **aurora**. Set `PROFILE_THEME` in `.github/workflows/update.ym
 
 <img src="assets/aurora/terminal.svg" width="100%" alt="aurora terminal">
 
-<img src="assets/aurora/city.svg" width="100%" alt="aurora city">
+<img src="assets/aurora/contributions.svg" width="100%" alt="aurora contributions">
 
 ## matrix
 
@@ -16,7 +16,7 @@ The profile uses **aurora**. Set `PROFILE_THEME` in `.github/workflows/update.ym
 
 <img src="assets/matrix/terminal.svg" width="100%" alt="matrix terminal">
 
-<img src="assets/matrix/city.svg" width="100%" alt="matrix city">
+<img src="assets/matrix/contributions.svg" width="100%" alt="matrix contributions">
 
 ## ember
 
@@ -24,4 +24,4 @@ The profile uses **aurora**. Set `PROFILE_THEME` in `.github/workflows/update.ym
 
 <img src="assets/ember/terminal.svg" width="100%" alt="ember terminal">
 
-<img src="assets/ember/city.svg" width="100%" alt="ember city">
+<img src="assets/ember/contributions.svg" width="100%" alt="ember contributions">

@@ -4,7 +4,7 @@
 
 <img src="assets/aurora/terminal.svg" width="100%" alt="Profile scan">
 
-<img src="assets/aurora/city.svg" width="100%" alt="280 contributions in the last year, drawn as a city">
+<img src="assets/aurora/contributions.svg" width="100%" alt="280 contributions in the last year">
 
 <img src="assets/aurora/languages.svg" width="100%" alt="Languages in public repositories">
 
